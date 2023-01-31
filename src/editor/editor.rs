@@ -1,10 +1,12 @@
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use std::cmp::min;
+
+use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
 use crate::io::{output::Output, reader::Reader};
 
 pub struct Editor {
     reader: Reader,
-    output: Output,
+    pub output: Output,
 }
 
 impl Editor {
@@ -20,7 +22,7 @@ impl Editor {
             KeyEvent {
                 code: KeyCode::Char('q'),
                 modifiers: KeyModifiers::CONTROL,
-                kind: _,
+                kind: KeyEventKind::Press,
                 state: _,
             } => return Ok(false),
             KeyEvent {
@@ -32,21 +34,33 @@ impl Editor {
                     | KeyCode::Home
                     | KeyCode::End),
                 modifiers: KeyModifiers::NONE,
-                kind: _,
+                kind: KeyEventKind::Press,
                 state: _,
             } => self.output.move_cursor(direction),
             KeyEvent {
                 code: val @ (KeyCode::PageUp | KeyCode::PageDown),
                 modifiers: KeyModifiers::NONE,
-                kind: _,
+                kind: KeyEventKind::Press,
                 state: _,
-            } => (0..self.output.win_size.1).for_each(|_| {
-                self.output.move_cursor(if matches!(val, KeyCode::PageUp) {
-                    KeyCode::Up
+            } => {
+                if matches!(val, KeyCode::PageUp) {
+                    self.output.cursor_controller.cursor_y =
+                        self.output.cursor_controller.row_offset
                 } else {
-                    KeyCode::Down
+                    self.output.cursor_controller.cursor_y = min(
+                        self.output.win_size.1 + self.output.cursor_controller.row_offset - 1,
+                        self.output.editor_rows.number_of_rows(),
+                    );
+                }
+
+                (0..self.output.win_size.1).for_each(|_| {
+                    self.output.move_cursor(if matches!(val, KeyCode::PageUp) {
+                        KeyCode::Up
+                    } else {
+                        KeyCode::Down
+                    })
                 })
-            }),
+            }
             _ => {}
         }
         Ok(true)
